@@ -1,0 +1,217 @@
+import pandas as pd # import de la library pandas pour le traitement des datas
+import numpy as np # import de la library numpy 
+import matplotlib # import matplotlib 
+import time  # to simulate a real time data, time loop
+import plotly.express as px  # interactive charts
+import streamlit as st  # 🎈 data web app development
+import matplotlib.pyplot as plt
+
+# importation des donnees au format csv depuis garmin connect
+BDD_brut = pd.read_csv(r"C:\Users\poibl\Documents\CAP\Activities.csv")
+#print(BDD_brut.columns.values)
+
+######################################################  variable de date ###################################################### 
+BDD_brut['Datetime'] = pd.to_datetime(BDD_brut['Date'])
+
+######################################################  Code_activite ######################################################### 
+
+# Course a pieds
+BDD_brut.loc[(BDD_brut["Type d'activité"] =="Course à pied")|(BDD_brut["Type d'activité"] =="Trail"), "Code_activite"] = "CAP"
+# Cyclisme
+BDD_brut.loc[BDD_brut["Type d'activité"] =="Cyclisme", "Code_activite"] = "Cycisme"
+
+##########################################################  DateTime ########################################################### 
+
+#annee
+BDD_brut['year_number'] = BDD_brut['Datetime'].dt.year
+BDD_brut['year']=  pd.Series(BDD_brut['year_number'], dtype="string")
+year = pd.Series(BDD_brut['year_number'], dtype="string")
+
+#Mois 
+BDD_brut['month_number'] = BDD_brut['Datetime'].dt.month
+BDD_brut['month']=  pd.Series(BDD_brut['month_number'], dtype="string")
+
+# semaine
+BDD_brut['week_number'] = BDD_brut['Datetime'].dt.isocalendar().week
+BDD_brut.loc[BDD_brut["week_number"] < 10 ,"week"] = "0"+ pd.Series(BDD_brut['week_number'], dtype="string")
+BDD_brut.loc[BDD_brut["week_number"] >= 10 ,"week"] = pd.Series(BDD_brut['week_number'], dtype="string")
+
+# annee semaine
+week = pd.Series(BDD_brut['week'], dtype="string")               
+BDD_brut['yearweek'] =  year + week #.astype(str)
+
+##########################################################  Allure  ############################################################ 
+
+# duree activites :
+BDD_brut[['Heure','minute','seconde']] =  BDD_brut["Durée"].str.split(pat=":" ,expand=True)
+BDD_brut['Heure'] = pd.to_numeric(BDD_brut['Heure'])
+BDD_brut['minute'] = pd.to_numeric(BDD_brut['minute'])
+BDD_brut['seconde'] = pd.to_numeric(BDD_brut['seconde'])
+
+# duree :
+BDD_brut['Duree_sec']=BDD_brut['Heure']*3600 + BDD_brut['minute']*60 + BDD_brut['seconde']
+BDD_brut['Duree_min']=BDD_brut['Duree_sec']*(1/60)
+
+# distance :
+BDD_brut['Km'] = pd.to_numeric(BDD_brut['Distance'])
+#df['col_name'] = pd.to_numeric(df['col_name'])
+
+# allure moyenne en secondes : 
+BDD_brut['Allure_moyenne_secondes'] = BDD_brut["Duree_sec"]/BDD_brut["Km"]
+
+# allure moyenne en minutes: 
+BDD_brut['Allure_moyenne'] = BDD_brut['Allure_moyenne_secondes'] * (1/60)
+
+BDD_brut['Allure_moyenne'] = round(BDD_brut['Allure_moyenne'],2) #arrondi 2 decimales
+BDD_brut['variablebascule'] = BDD_brut['Allure_moyenne'].apply(str)
+BDD_brut[['variablebascule1','variablebascule2']] =  BDD_brut["variablebascule"].str.split(pat="." ,expand=True)
+
+BDD_brut['Allure_moyenne'] = "0" + BDD_brut['variablebascule1'] + ":" + BDD_brut['variablebascule2']
+
+######################################################  Type entrainement ###################################################### 
+
+# separer les entrainements spé des autres 
+BDD_brut['AnalyseType']= BDD_brut['Titre'].str.contains('-', na=False) # si un separeteur entrainement spe sinon entrainement
+
+# indicateur type entrainement => non spe
+BDD_brut.loc[(BDD_brut["AnalyseType"] == False) & (BDD_brut["Code_activite"] =="CAP"),'Type_entrainement1'] = BDD_brut['Titre']
+
+# indicateur type entrainement => non spe & cyclisme
+BDD_brut.loc[(BDD_brut["Code_activite"] =="Cyclisme"),'Type_entrainement2'] = BDD_brut['Titre']
+
+# on passe dans une variable de bascule si le type entrainement => spe
+BDD_brut.loc[(BDD_brut["AnalyseType"] == True) & (BDD_brut["Code_activite"] =="CAP"), 'VariableBascule'] = BDD_brut['Titre']
+             
+# separer dans les entrainements spé le type, le descriptif et l allure moyenne 
+BDD_brut[['Type_entrainement3','descriptif2','alluretype2','balise']] = BDD_brut["VariableBascule"].str.split(pat="-" ,expand=True)
+
+# calcul de l'allure moyenne 
+BDD_brut[['Heure2','minute2','seconde2']] =  BDD_brut["alluretype2"].str.split(pat=":" ,expand=True)
+#BDD_brut['Heure2'] = pd.to_numeric(BDD_brut['Heure2'], dtype="string")
+BDD_brut['minute2'] = pd.to_numeric(BDD_brut['minute2'], errors='ignore')
+BDD_brut['seconde2'] = pd.to_numeric(BDD_brut['seconde2'], errors ='ignore')
+
+# allure moyenne :
+
+
+BDD_brut['Duree_sec2']= BDD_brut['minute2']*60 + BDD_brut['seconde2']
+# allure moyenne en minutes :
+BDD_brut['Allure_moyenne_entainement_minutes'] = BDD_brut['Duree_sec2'] * (1/60)
+
+
+BDD_brut['Allure_moyenne_entainement_minutes'] = round(BDD_brut['Allure_moyenne_entainement_minutes'],2) #arrondi 2 decimales
+BDD_brut['variablebascule'] = BDD_brut['Allure_moyenne_entainement_minutes'].apply(str)
+BDD_brut[['variablebascule1','variablebascule2']] =  BDD_brut["variablebascule"].str.split(pat="." ,expand=True)
+
+BDD_brut['Allure_moyenne_entrainement'] = "0" + BDD_brut['variablebascule1'] + ":" + BDD_brut['variablebascule2']
+
+# Creation de la variable finale Type_entrainement 
+
+BDD_brut.loc[(BDD_brut["AnalyseType"] == False) & (BDD_brut["Code_activite"] =="CAP"),'Type_entrainement'] = BDD_brut['Type_entrainement1']
+BDD_brut.loc[(BDD_brut["Code_activite"] =="Cyclisme"),'Type_entrainement'] = BDD_brut['Type_entrainement2']
+BDD_brut.loc[(BDD_brut["AnalyseType"] == True) & (BDD_brut["Code_activite"] =="CAP"),'Type_entrainement'] = BDD_brut['Type_entrainement3']
+
+# creation de la variable descriptif 
+BDD_brut.loc[(BDD_brut["AnalyseType"] == False) & (BDD_brut["Code_activite"] =="CAP"),'Descriptif'] = ""
+BDD_brut.loc[(BDD_brut["Code_activite"] =="Cyclisme"),'Descriptif'] = ""
+BDD_brut.loc[(BDD_brut["AnalyseType"] == True ) & (BDD_brut["Code_activite"] =="CAP"),'Descriptif'] = BDD_brut['descriptif2']
+
+# creation de la variable allure moyenne en minute 
+BDD_brut.loc[(BDD_brut["AnalyseType"] == False ) & (BDD_brut["Code_activite"] =="CAP"),'Allure_entrainement'] = BDD_brut['Allure_moyenne']
+BDD_brut.loc[(BDD_brut["Code_activite"] =="Cyclisme"),'Allure_entrainement'] = BDD_brut['Allure_moyenne']
+BDD_brut.loc[(BDD_brut["AnalyseType"] == True ) & (BDD_brut["Code_activite"] =="CAP"),'Allure_entrainement'] = BDD_brut['Allure_moyenne_entrainement']
+
+
+
+BDD = BDD_brut[["Type d'activité", 'Date','Titre' ,'Distance', 'Calories' ,'Durée',
+ 'Fréquence cardiaque moyenne' ,'Fréquence cardiaque maximale', 'TE aérobie',
+ 'Cadence de course moyenne' ,'Cadence de course maximale' ,'Allure moyenne',
+ 'Meilleure allure', 'Ascension totale' ,'Descente totale',
+ 'Longueur moyenne des foulées' ,'Rapport vertical moyen',
+ 'Oscillation verticale moyenne' ,'Temps de contact moyen avec le sol',
+ 'Training Stress Score® (TSS®)', 'Puissance moy.', 'Puissance max.',
+ 'Difficulté' ,'Constance' ,'SWOLF moyen', 'Fréquence moy. des coups',
+ 'Total des répétitions', 'Total des sessions', 'Temps de plongée',
+ 'Température minimale', 'Intervalle à la surface', 'Décompression',
+ 'Temps du meilleur circuit' ,'Nombre de circuits', 'Température maximale',
+ 'Fréquence respiratoire moyenne' ,'Fréquence respiratoire minimale',
+ 'Fréquence respiratoire maximale' ,'Temps de déplacement', 'Temps écoulé',
+ 'Altitude minimale' ,'Altitude maximale' ,'Datetime', 'Code_activite',
+ 'week' ,'month' ,'year' ,'yearweek', 'Duree_min','Duree_sec','Km',
+ 'Allure_moyenne', 'Type_entrainement' ,'Descriptif', 'Allure_entrainement']]
+
+
+
+st.set_page_config(page_title = "Dashboard Running",
+                   page_icon = ":bar_chart",
+                   layout="wide")
+
+######################################################  Dashboard ###################################################### 
+
+############# Titre et entete 
+st.title("Tableau semaine") # titre 1
+#st.write(""" KM par semaine """) # titre 2
+
+############# tab
+#st.dataframe(BDD) # show data 
+
+############# zone de filtre 
+st.sidebar.header("Please Filter Here :")
+
+week = BDD["yearweek"].drop_duplicates()
+week_choice = st.sidebar.selectbox('Select the week:', week) #selectbox week
+
+activite = BDD["Code_activite"].drop_duplicates()
+activite_choice = st.sidebar.selectbox('Select The activites :',activite)
+
+
+df_selection = BDD.query("yearweek == @week_choice & Code_activite == @activite_choice")
+st.dataframe(df_selection)
+
+
+############# main page 
+#:bar_chart:
+st.title("Bilan semaine")
+st.markdown("##")
+
+total_km = int(df_selection["Km"].sum())
+average_km = round(df_selection["Km"].mean(),1)
+total_duree = df_selection['Duree_min'].sum()
+
+
+left_column,middle_column,right_column = st.columns(3)
+with left_column : 
+        st.subheader('Total Km :')
+        st.subheader(total_km)
+with middle_column : 
+        st.subheader('Moy Km :')
+        st.subheader(average_km)
+with right_column : 
+        st.subheader('Total Duree :')
+        st.subheader(total_duree)
+
+st.markdown('---')
+
+
+km_by_entrainement = (
+    df_selection.groupby(by=['Type_entrainement']).sum() [['Km']].sort_values(by="Km")
+
+)
+fig_km_entrainement = px.bar(
+        km_by_entrainement,
+        x='Km',
+        y=km_by_entrainement.index,
+        orientation='h',
+        title="<b>Km by entrainement <b>",
+        color_discrete_sequence =["#0083B8"]* len(km_by_entrainement),
+        template="plotly_white",
+        )
+
+fig_km_entrainement.update_layout(
+    plot_bgcolor="rgba(0,0,0,0)",
+    xaxis=(dict(showgrid=False))
+)
+
+st.plotly_chart(fig_km_entrainement)
+
+
