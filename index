@@ -1,3 +1,10 @@
+# -*- coding: utf-8 -*-
+"""
+Spyder Editor
+
+This is a temporary script file.
+"""
+
 import pandas as pd # import de la library pandas pour le traitement des datas
 import numpy as np # import de la library numpy 
 import matplotlib # import matplotlib 
@@ -51,6 +58,7 @@ BDD_brut['seconde'] = pd.to_numeric(BDD_brut['seconde'])
 # duree :
 BDD_brut['Duree_sec']=BDD_brut['Heure']*3600 + BDD_brut['minute']*60 + BDD_brut['seconde']
 BDD_brut['Duree_min']=BDD_brut['Duree_sec']*(1/60)
+BDD_brut['Duree_heure'] = BDD_brut['Duree_min']*(1/60)
 
 # distance :
 BDD_brut['Km'] = pd.to_numeric(BDD_brut['Distance'])
@@ -137,23 +145,18 @@ BDD = BDD_brut[["Type d'activité", 'Date','Titre' ,'Distance', 'Calories' ,'Dur
  'Fréquence respiratoire moyenne' ,'Fréquence respiratoire minimale',
  'Fréquence respiratoire maximale' ,'Temps de déplacement', 'Temps écoulé',
  'Altitude minimale' ,'Altitude maximale' ,'Datetime', 'Code_activite',
- 'week' ,'month' ,'year' ,'yearweek', 'Duree_min','Duree_sec','Km',
+ 'week' ,'month' ,'year' ,'yearweek','Duree_heure','Duree_min','Duree_sec','Km',
  'Allure_moyenne', 'Type_entrainement' ,'Descriptif', 'Allure_entrainement']]
 
 
+
+######################################################  Dashboard ###################################################### 
 
 st.set_page_config(page_title = "Dashboard Running",
                    page_icon = ":bar_chart",
                    layout="wide")
 
-######################################################  Dashboard ###################################################### 
 
-############# Titre et entete 
-st.title("Tableau semaine") # titre 1
-#st.write(""" KM par semaine """) # titre 2
-
-############# tab
-#st.dataframe(BDD) # show data 
 
 ############# zone de filtre 
 st.sidebar.header("Please Filter Here :")
@@ -165,38 +168,87 @@ activite = BDD["Code_activite"].drop_duplicates()
 activite_choice = st.sidebar.selectbox('Select The activites :',activite)
 
 
+df_selection_activite = BDD.query("Code_activite == @activite_choice")
 df_selection = BDD.query("yearweek == @week_choice & Code_activite == @activite_choice")
-st.dataframe(df_selection)
+
 
 
 ############# main page 
+st.title("Détail Activite") # titre 1
+
+km_semaine = df_selection_activite.groupby(by=["yearweek"]).sum()[["Km"]]
+fig_km_semaine = px.bar(
+    km_semaine,
+    x = km_semaine.index,
+    y="Km",
+    title="<b> Km par semaines <b>",
+    color_discrete_sequence=["#0083B8"]*len(km_semaine),
+    template="plotly_white",
+    )
+
+fig_km_semaine.update_layout(
+    xaxis=dict(tickmode="linear"),
+    plot_bgcolor="rgba(0,0,0,0)",
+    yaxis=(dict(showgrid=False)),
+    )
+
+
+Heure_semaine = df_selection_activite.groupby(by=["yearweek"]).sum()[["Duree_heure"]]
+fig_Heure_semaine = px.bar(
+    Heure_semaine,
+    x = Heure_semaine.index,
+    y="Duree_heure",
+    title="<b> Heure par semaines <b>",
+    color_discrete_sequence=["#0083B8"]*len(Heure_semaine),
+    template="plotly_white",
+    )
+
+fig_Heure_semaine.update_layout(
+    xaxis=dict(tickmode="linear"),
+    plot_bgcolor="rgba(0,0,0,0)",
+    yaxis=(dict(showgrid=False)),
+    )
+
+
+left_column,right_column = st.columns(2)
+left_column.plotly_chart(fig_km_semaine,use_container_width=True)
+right_column.plotly_chart(fig_Heure_semaine,use_container_width=True)
+
+st.markdown('#####')
+
+
+###### donnees chiffrees stat semaine ########
+
 #:bar_chart:
 st.title("Bilan semaine")
 st.markdown("##")
 
 total_km = int(df_selection["Km"].sum())
 average_km = round(df_selection["Km"].mean(),1)
-total_duree = df_selection['Duree_min'].sum()
+total_entrainement = df_selection['Date'].count()
 
 
 left_column,middle_column,right_column = st.columns(3)
 with left_column : 
-        st.subheader('Total Km :')
+        st.subheader('Cumul Km semaine :')
         st.subheader(total_km)
 with middle_column : 
-        st.subheader('Moy Km :')
+        st.subheader('Moy Km activite :')
         st.subheader(average_km)
 with right_column : 
-        st.subheader('Total Duree :')
-        st.subheader(total_duree)
+        st.subheader("Nombre d'activites :")
+        st.subheader(total_entrainement)
 
 st.markdown('---')
 
-
+##### graphique Km by entrainement #######
 km_by_entrainement = (
     df_selection.groupby(by=['Type_entrainement']).sum() [['Km']].sort_values(by="Km")
 
 )
+
+
+
 fig_km_entrainement = px.bar(
         km_by_entrainement,
         x='Km',
@@ -214,4 +266,16 @@ fig_km_entrainement.update_layout(
 
 st.plotly_chart(fig_km_entrainement)
 
+
+
+#################### parametrage du dashboard ###########
+
+hide_st_style = """
+                <style>
+                #MainMenu{visibility : hidden;}
+                footer {visibility : hidden;}
+                header {visibility : hidden;}
+                </style>
+                """
+st.markdown(hide_st_style,unsafe_allow_html=True)
 
